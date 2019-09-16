@@ -4,7 +4,7 @@ android {
     compileSdkVersion 27
     defaultConfig {
         applicationId "ch.hepia.iti.opencvnativeandroidstudio"
-        minSdkVersion 19
+        minSdkVersion 21
         targetSdkVersion 27
         versionCode 1
         versionName "1.0"
@@ -37,5 +37,17 @@ android {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation 'com.android.support:appcompat-v7:27.1.1'
-    implementation project(':openCVLibrary')
+
+
+    //implementation 'org.bytedeco:javacv:+'
+    //implementation 'org.bytedeco.javacpp-presets:opencv:3.1.0-1.3:android-x86'
+  //  implementation 'org.bytedeco.javacpp-presets:ffmpeg:3.4.1-1.4:android-x86'
+    //implementation 'org.bytedeco.javacpp-presets:opencv:3.1.0-1.3:android-arm'
+    //implementation 'org.bytedeco.javacpp-presets:ffmpeg:3.4.1-1.4:android-arm'
+    implementation project(path: ':OCV4')
+    // implementation 'org.bytedeco.javacpp-presets:opencv:4.0.1-1.4.4:android-arm'
+  //  implementation 'org.bytedeco.javacpp-presets:ffmpeg:2.8.1-1.1:android-arm'
+
+//*/
+
 }
