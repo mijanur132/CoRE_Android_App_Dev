@@ -51,9 +51,11 @@ import java.net.URLConnection;
 
 import static java.lang.Boolean.TRUE;
 import static java.lang.Math.PI;
+import static java.lang.Math.acos;
 import static java.lang.Math.asin;
 import static java.lang.Math.atan;
 import static java.lang.Math.cos;
+import static java.lang.Math.sin;
 import static java.lang.StrictMath.abs;
 import static org.opencv.core.CvType.CV_8UC4;
 import static org.opencv.imgproc.Imgproc.FONT_HERSHEY_COMPLEX_SMALL;
@@ -131,17 +133,18 @@ public class MainActivity extends AppCompatActivity {
             long x=param[1];
             int chunk2load=(int)x;
             System.out.println("backGround execute chunk...........................>>><<<"+ chunk2load);
-            Long tsLong = System.currentTimeMillis();
-            String ts1 = tsLong.toString();
+           // Long tsLong = System.currentTimeMillis();
+           // String ts1 = tsLong.toString();
             String videoPath=downloadFileHttp(chunk2load);
-            Long tsLong2 = System.currentTimeMillis();
-            String ts2 = tsLong2.toString();
+           // Long tsLong2 = System.currentTimeMillis();
+            //String ts2 = tsLong2.toString();
             System.out.println("video path..................................."+videoPath);
             dlFinished=loadVideoFromDevice(addr, videoPath, chunk2load);
-            Long tsLong3 = System.currentTimeMillis();
-            String ts3 = tsLong3.toString();
-            System.out.println("time to download................................>>>"+" "+ts1+" "+ts2+" "+ts3);
-            System.out.println("backGround execute returned...........................>>><<<"+ chunk2load);
+            System.out.println("dl finished..................................."+dlFinished);
+           // Long tsLong3 = System.currentTimeMillis();
+           // String ts3 = tsLong3.toString();
+            //System.out.println("time to download................................>>>"+" "+ts1+" "+ts2+" "+ts3);
+            //System.out.println("backGround execute returned...........................>>><<<"+ chunk2load);
          return null;
         }
     }
@@ -181,6 +184,8 @@ public class MainActivity extends AppCompatActivity {
 
     public void playThread()
     {
+
+
         while(dlFinished==0)
         {
             //System.out.println("Not downloaded yet");
@@ -195,23 +200,23 @@ public class MainActivity extends AppCompatActivity {
                     ImageView iv = (ImageView) findViewById(R.id.imageView);
                     iv.invalidate();
                     Bitmap bm;
-                    System.out.println("displaying chunk ..........."+ chunk2display);
+                   // System.out.println("displaying chunk ..........."+ chunk2display);
                     CoREoperationPerFrame(m1.getNativeObjAddr(), ia, chunk2display); // ia increaseas and one after another frame comses out
                     bm = Bitmap.createBitmap(m1.cols(), m1.rows(), Bitmap.Config.ARGB_8888);
                     Utils.matToBitmap(m1, bm);
                     System.out.println("frame displayed from current chunk.............>:"+ ia);
                     iv.setImageBitmap(bm);
 
-                    if (ia<119) {
-                        handler.postDelayed(this, 2);
-                    }
+                   // if (ia<119) {
+                    handler.postDelayed(this, 2);
+                    //}
                     if (ia==119)
                     {
                        chunk2display=chunk2display+1;
                         ia=0;
-                        System.out.println("chunk 2 display updated............"+ chunk2display+" ia "+ ia);
-                        //System.exit((1));
-                        playThread();
+                        System.out.println("chunk end. New:......."+ chunk2display+" ia "+ ia);
+                       // playThread();
+
                     }
                     if (ia==90)
                     {
@@ -232,10 +237,20 @@ public class MainActivity extends AppCompatActivity {
         String fPath="";
         try
         {
-            String sourceBaseAddr="http://128.10.120.226:80/4thSecVar/diving/";
-            double cameraDirectionX=1;
+           // String sourceBaseAddr="http://128.10.120.226:80/4thSecVar/diving/tempAndroid/";
+            String sourceBaseAddr="http://10.0.0.2:80/4thSecVar/diving/tempAndroid/reg/";
+           // double q0=0.947899975;
+            //double q1=-0.019795666;
+           // double q2=-0.004674471;
+            //double q3=0.317918744;
+            //double theta2=acos(q0);
+           // double cameraDirectionX=q2/sin(theta2);
+            //double cameraDirectionY=q3/sin(theta2);
+            //double cameraDirectionZ=q1/sin(theta2);
+
+            double cameraDirectionX=-0.8;
             double cameraDirectionY=0.1;
-            double cameraDirectionZ=1;
+            double cameraDirectionZ=-0.8;
             String result="diving_"+getFileName2Req(sourceBaseAddr,chunkN, cameraDirectionX,cameraDirectionY, cameraDirectionZ);
             //URL url = new URL("http://128.10.120.226:80/video1.mp4");
             String name=sourceBaseAddr+result;

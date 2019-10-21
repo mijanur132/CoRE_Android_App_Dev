@@ -65,9 +65,8 @@ Java_ch_hepia_iti_opencvnativeandroidstudio_MainActivity_loadVideoFromDevice(JNI
             frame = Mat::zeros(100 + fi, 400 + fi, CV_8UC3);//dummy frame
         } else {
         }
-        __android_log_print(ANDROID_LOG_VERBOSE, "MyApp",
-                            "fi...............arr......................%d>> ", fi);
         int chunkno = (int) chunkN;
+        __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "fi=%d, CN=%d>> ", fi,chunkno);
         loadedFrameVec[chunkno].push_back(frame);
         frame.release();
     }
@@ -81,7 +80,12 @@ extern "C"
 JNIEXPORT void JNICALL Java_ch_hepia_iti_opencvnativeandroidstudio_MainActivity_CoREoperationPerFrame(JNIEnv *env, jobject instance, jlong addr, jint fi, jint chunkN) {
 
     Mat* pMatGr=(Mat*)addr;
+    while(fi>=loadedFrameVec[chunkN].size())
+    {
+        __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "looping fi=%d, size=%d>> ", fi,loadedFrameVec[chunkN].size());
+    }
     *pMatGr=loadedFrameVec[chunkN][fi].clone();
+    __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "Pfi=%d, PCN=%d>> ", fi,chunkN);
     CoRE_operation_per_frame(*pMatGr); //xxxOpt: pass fi as an input parameter instead of image vec[fi], use pMatGr as output parameter
     return;
  }
