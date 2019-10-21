@@ -63,8 +63,9 @@ import static org.opencv.imgproc.Imgproc.putText;
 
 
 public class MainActivity extends AppCompatActivity {
-    int myVar=1;
+    int chunk2display=1;
     int dlFinished=0;
+    Long chunk2loadFile=1L;
 
     private static final String TAG = "OCVSample::Activity";
     private BaseLoaderCallback _baseLoaderCallback = new BaseLoaderCallback(this) {
@@ -126,22 +127,21 @@ public class MainActivity extends AppCompatActivity {
         // This is run in a background thread
         @Override
         protected Void doInBackground(Long... param) {
-            // get the string from params, which is an array // Do something that takes a long time, for example:
             Long addr= param[0];
             long x=param[1];
-            int chunkN=(int)x;
-            System.out.println("backGround execute...........................>>><<<"+addr);
+            int chunk2load=(int)x;
+            System.out.println("backGround execute chunk...........................>>><<<"+ chunk2load);
             Long tsLong = System.currentTimeMillis();
             String ts1 = tsLong.toString();
-            String videoPath=downloadFileHttp(chunkN);
+            String videoPath=downloadFileHttp(chunk2load);
             Long tsLong2 = System.currentTimeMillis();
             String ts2 = tsLong2.toString();
             System.out.println("video path..................................."+videoPath);
-            dlFinished=loadVideoFromDevice(addr, videoPath, chunkN);
+            dlFinished=loadVideoFromDevice(addr, videoPath, chunk2load);
             Long tsLong3 = System.currentTimeMillis();
             String ts3 = tsLong3.toString();
             System.out.println("time to download................................>>>"+" "+ts1+" "+ts2+" "+ts3);
-            System.out.println("backGround execute returned...........................>>><<<"+addr);
+            System.out.println("backGround execute returned...........................>>><<<"+ chunk2load);
          return null;
         }
     }
@@ -157,7 +157,9 @@ public class MainActivity extends AppCompatActivity {
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                    initCoREparameters();
                     System.out.println("CoRE param updated..........................................>>>>");
-                   videoThread();
+                    dlThread();
+                    playThread();
+
                     //image();
 
                 } else {
@@ -171,64 +173,58 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void videoThread()
+    public void dlThread()
     {
         Mat m=new Mat();
-        final Long [] chunkN={1L};
-        new MyTask().execute(m.getNativeObjAddr(),chunkN[0]);//calling load video from device using videocapture in background
-        try {
-            Thread.sleep(200);
-        } catch(InterruptedException e) {
-            // Process exception
-        }
+        new MyTask().execute(m.getNativeObjAddr(),chunk2loadFile);//calling load video from device using videocapture in background
+     }
 
+    public void playThread()
+    {
         while(dlFinished==0)
         {
-            System.out.println("Not downloaded yet");
+            //System.out.println("Not downloaded yet");
         }
-        for (int fi=0; fi<2; fi++) {
+
             final Handler handler = new Handler();
             handler.postDelayed(new Runnable(){
 
-                int ia=1    ;
+                int ia=0    ;
                 Mat m1=new Mat();
                 public void run(){
                     ImageView iv = (ImageView) findViewById(R.id.imageView);
                     iv.invalidate();
                     Bitmap bm;
-                    System.out.println("myvar............"+myVar);
-                    CoREoperationPerFrame(m1.getNativeObjAddr(), ia, myVar); // ia increaseas and one after another frame comses out
+                    System.out.println("displaying chunk ..........."+ chunk2display);
+                    CoREoperationPerFrame(m1.getNativeObjAddr(), ia, chunk2display); // ia increaseas and one after another frame comses out
                     bm = Bitmap.createBitmap(m1.cols(), m1.rows(), Bitmap.Config.ARGB_8888);
                     Utils.matToBitmap(m1, bm);
                     System.out.println("frame displayed from current chunk.............>:"+ ia);
                     iv.setImageBitmap(bm);
-                    ia++;
-                    if (ia<118) {
+
+                    if (ia<119) {
                         handler.postDelayed(this, 2);
                     }
-                    if (ia==118)
+                    if (ia==119)
                     {
-                        myVar=myVar+1;
-                        ia=1;
-                        System.out.println("myvar updated............"+myVar+" ia "+ ia);
+                       chunk2display=chunk2display+1;
+                        ia=0;
+                        System.out.println("chunk 2 display updated............"+ chunk2display+" ia "+ ia);
+                        //System.exit((1));
+                        playThread();
                     }
                     if (ia==90)
                     {
                         Mat m=new Mat();
-                        chunkN[0]=chunkN[0]+1;
+                        chunk2loadFile=chunk2loadFile+1;
                         dlFinished=0;
-                        new MyTask().execute(m.getNativeObjAddr(), chunkN[0]);//calling load video from device using videocapture in background
+                        new MyTask().execute(m.getNativeObjAddr(), chunk2loadFile);//calling load video from device using videocapture in background
 
                     }
+                    ia++;
                 }
             }, 2);
 
-            try {
-                Thread.sleep(3);
-            } catch (InterruptedException e) {
-                // Process exception
-            }
-        }
     }
 
     public String downloadFileHttp(int chunkN)
@@ -246,6 +242,7 @@ public class MainActivity extends AppCompatActivity {
             URL url = new URL(name);
             String fname=result;
             System.out.println("requested file name................................>>>"+ name+ " "+fname);
+            //System.out.println("path "+Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS));
 
             URLConnection ucon = url.openConnection();
             ucon.setReadTimeout(5000);
@@ -253,7 +250,9 @@ public class MainActivity extends AppCompatActivity {
             InputStream is = ucon.getInputStream();
             BufferedInputStream inStream = new BufferedInputStream(is, 1024 * 5);
             File file = new File("/storage/emulated/0/Download/" + fname);
+           // File file=new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), fname);
              fPath=file.getPath();
+
             if (file.exists())
             {
                 file.delete();
