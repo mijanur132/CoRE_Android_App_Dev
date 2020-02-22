@@ -36,7 +36,7 @@ void Path::updateReriCs(){
 	int w = frameLen * hfov / 360;
 	int h = frameWidth * hfov / 360;
 	PPC camera(hfov*corePredictionMargin, w*corePredictionMargin, h*corePredictionMargin);
-	camera.Pan(30);
+	//camera.Pan(30);
 	V3 xaxis = camera.a.UnitVector();
 	V3 yaxis = camera.b.UnitVector()*-1.0f;
 	V3 zaxis = xaxis ^ yaxis;
@@ -251,10 +251,10 @@ void Path::CRERI2convOptimized(Mat & CRERI, Mat & convPixels,  PPC camera1)
 	camera1.b = reriCS * camera1.b;
 	camera1.c = reriCS * camera1.c;
 
-	for (int v = 0; v < camera1.h; v++)
+	for (int v = 0; v <= camera1.h; v++)
 	{
 		V3 p1 = camera1.b * v + camera1.c;
-		for (int u = 0; u < camera1.w; u++)
+		for (int u = 0; u <= camera1.w; u++)
 		{
 			V3 p = camera1.a*u + p1;
 			p = p.UnitVector();

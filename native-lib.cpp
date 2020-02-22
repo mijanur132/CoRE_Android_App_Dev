@@ -14,6 +14,7 @@
 #include"ERI.h"
 #include "image.h"
 #include "path.h"
+#include "../../../../../../../../opencv/build/include/opencv2/videoio.hpp"
 #include <vector>
 
 using namespace std;
@@ -27,7 +28,7 @@ int framloaded;
 
 extern "C"
 {
-JNIEXPORT void JNICALL Java_ch_hepia_iti_opencvnativeandroidstudio_MainActivity_image(JNIEnv *env, jobject instance, jlong addr) {
+JNIEXPORT void JNICALL Java_com_example_core_MainActivity_image(JNIEnv *env, jobject instance, jlong addr) {
 
     Mat* pMatGr=(Mat*)addr;
     Mat convImage= imread("http://10.0.2.2:80/1.jpg");
@@ -44,58 +45,68 @@ JNIEXPORT void JNICALL Java_ch_hepia_iti_opencvnativeandroidstudio_MainActivity_
 
 extern "C"
 {
-JNIEXPORT jint JNICALL
-Java_ch_hepia_iti_opencvnativeandroidstudio_MainActivity_loadVideoFromDevice(JNIEnv *env,
+JNIEXPORT jint JNICALL Java_com_example_core_MainActivity_loadVideoFromDevice(JNIEnv *env,
                                                                              jobject instance,
                                                                              jlong addr,
                                                                              jstring videoPath,
                                                                              jint chunkN) {
+    __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "came here()");
 
     Mat *pMatGr = (Mat *) addr;
     jboolean iscopy;
     const char *vpath = (env)->GetStringUTFChars(videoPath, &iscopy);
     VideoCapture cap1(vpath);
     if (!cap1.isOpened()) {
+        __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "emptyframe.................");
         return 0;
     }
-    for (int fi = 0; fi < 120; fi++) {
+    for (int fi = 0; fi < 120; fi++)
+    {
         Mat frame;
         cap1 >> frame;
+        __android_log_print(ANDROID_LOG_VERBOSE,"MyApp","%d, =%d", fi,chunkN);
         if (frame.empty()) {
+            __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "emptyframe.................");
             frame = Mat::zeros(100 + fi, 400 + fi, CV_8UC3);//dummy frame
         } else {
         }
         int chunkno = (int) chunkN;
-        __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "fi=%d, CN=%d>> ", fi,chunkno);
-        loadedFrameVec[chunkno].push_back(frame);
+        //__android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "fi=%d, CN=%d>> ", fi,chunkno);
+        if (fi==0)
+        {loadedFrameVec[chunkno][0]=frame;}
+        else{loadedFrameVec[chunkno].push_back(frame);}
+
         frame.release();
     }
-
+    __android_log_print(ANDROID_LOG_VERBOSE,"MyApp"," loaded..........................=%d,=%d", chunkN, loadedFrameVec[chunkN].size());
     return 1;
 }
 }
 
 extern "C"
 {
-JNIEXPORT void JNICALL Java_ch_hepia_iti_opencvnativeandroidstudio_MainActivity_CoREoperationPerFrame(JNIEnv *env, jobject instance, jlong addr, jint fi, jint chunkN) {
+JNIEXPORT void JNICALL Java_com_example_core_MainActivity_CoREoperationPerFrame(JNIEnv *env, jobject instance, jlong addr, jint fi, jint chunkN, jint cameraPan) {
 
     Mat* pMatGr=(Mat*)addr;
-    while(fi>=loadedFrameVec[chunkN].size())
-    {
-        __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "looping fi=%d, size=%d>> ", fi,loadedFrameVec[chunkN].size());
-    }
+
+    while(fi>=loadedFrameVec[chunkN].size() && loadedFrameVec[chunkN].size()<80)
+   {
+     //  __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "looping fi=%d, size=%d, chunkN=%d>> ", fi,loadedFrameVec[chunkN].size(), chunkN);
+   }
+    __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "..................................................................................looping fi=%d, size=%d, chunkN=%d, pan=%d>> ", fi,loadedFrameVec[chunkN].size(), chunkN, cameraPan);
     *pMatGr=loadedFrameVec[chunkN][fi].clone();
-    __android_log_print(ANDROID_LOG_VERBOSE,"MyApp", "Pfi=%d, PCN=%d>> ", fi,chunkN);
-    CoRE_operation_per_frame(*pMatGr); //xxxOpt: pass fi as an input parameter instead of image vec[fi], use pMatGr as output parameter
+    CoRE_operation_per_frame(*pMatGr, cameraPan); //xxxOpt: pass fi as an input parameter instead of image vec[fi], use pMatGr as output parameter
+    Mat m;
+    loadedFrameVec[chunkN][fi]=m;
     return;
- }
+}
 }
 
 extern "C"
 {
-JNIEXPORT void JNICALL Java_ch_hepia_iti_opencvnativeandroidstudio_MainActivity_initCoREparameters(JNIEnv *env, jobject instance) {
+JNIEXPORT void JNICALL Java_com_example_core_MainActivity_initCoREparameters(JNIEnv *env, jobject instance) {
     Mat mat=Mat::zeros(900, 800, CV_8UC3);//dummy frame;
-    for (int i = 0; i <10 ; ++i) {
+    for (int i = 0; i <30 ; ++i) {
         vector<Mat> temp;
         temp.push_back(mat);
         loadedFrameVec.push_back(temp);

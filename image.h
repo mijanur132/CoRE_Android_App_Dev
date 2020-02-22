@@ -31,4 +31,4 @@ extern M33 M_Inv;
 
 
 void testrotationxyframe(cv::Mat &frame);
-void CoRE_operation_per_frame(cv::Mat & frame);
+void CoRE_operation_per_frame(cv::Mat & frame, int cameraPan);
