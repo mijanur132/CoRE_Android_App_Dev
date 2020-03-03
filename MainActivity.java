@@ -51,6 +51,12 @@ public class MainActivity extends AppCompatActivity {
     volatile int pan=0;
     volatile  int dlChunkPan=0;
     volatile  int dlChunkPan1=0;
+    volatile int lastChunkReqPan=0;
+    volatile int totalPan=0;
+    volatile int totalTilt=0;
+    volatile long startTotal=0;
+    volatile float downX=0;
+    volatile float downY=0;
 
     private static final String TAG = "OCVSample::Activity";
     private BaseLoaderCallback _baseLoaderCallback = new BaseLoaderCallback(this) {
@@ -125,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
             {
                 if(yes2DL==1)
                 {
-                    String videoPath=downloadFileHttp(chunk2load, pan);
+                    String videoPath=downloadFileHttp(chunk2load, totalPan);
                     int xx=pan;
                     dlFinished=loadVideoFromDevice(addr, videoPath, chunk2load);
                     System.out.println("dl finished.total DL:..................................................................."+chunk2load);
@@ -150,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     initCoREparameters();
                     System.out.println("CoRE param updated..........................................>>>>");
-
+                    startTotal = System.currentTimeMillis();
                     yes2DL=1;
                     dlThread();
                     while(totalPlChunk>=totalDlChunk)//totalDlChunk<=totalPlChunk
@@ -172,7 +178,7 @@ public class MainActivity extends AppCompatActivity {
     {
 
                 Mat m = new Mat();
-                long cameraPan = pan;
+                long cameraPan = totalPan;
                 new MyTask().execute(m.getNativeObjAddr(), chunk2loadFile, cameraPan);//calling load video from device using videocapture in background
 
     }
@@ -187,63 +193,99 @@ public class MainActivity extends AppCompatActivity {
             int ia=0;
             Mat m1=new Mat();
             Long FirstStart = System.currentTimeMillis();
+            int dlChunkPan1xx=0;
             public void run()
                     {
                         int lastPan=0;
+
                         ImageView iv = (ImageView) findViewById(R.id.imageView);
                         iv.invalidate();
                         Bitmap bm;
+//                        iv.setOnTouchListener(new View.OnTouchListener(){
+//                            @Override
+//                            public boolean onTouch(View v, MotionEvent event) {
+//                                final float x = event.getX();
+//                                final float y = event.getY();
+//                                float lastXAxis = x;
+//                                float lastYAxis = y;
+//                                int add=5;
+//                                System.out.println("touch.............x:>: "+ x+" y:"+ y);
+//                                if (x>1200)
+//                                {
+//                                    totalPan=(totalPan+add);
+//                                }
+//                                else
+//                                {
+//                                    totalPan=(totalPan-add);
+//                                }
+//
+//                                Toast.makeText(MainActivity.this, "touch..................", Toast.LENGTH_SHORT).show();
+//                                return true;
+//                            }
+//                        });
                         iv.setOnTouchListener(new View.OnTouchListener(){
                             @Override
                             public boolean onTouch(View v, MotionEvent event) {
-                                final float x = event.getX();
-                                final float y = event.getY();
-                                float lastXAxis = x;
-                                float lastYAxis = y;
-                                int add=2;
-                                System.out.println("touch.............x:>: "+ x+" y:"+ y);
-                                if (x>1200)
-                                {
-                                    pan=(pan-add)%360;
+                                int add=5;
+                                boolean mIsSwiping = false;
+                                switch(event.getActionMasked()) {
+                                    case MotionEvent.ACTION_DOWN: {
+                                        downX = event.getX();
+                                        downY=event.getY();
+                                        break;
+                                    }
+                                    case MotionEvent.ACTION_UP:
+                                        float deltaX = event.getX() - downX;
+                                        float deltaY = event.getY() - downY;
+                                        Toast.makeText(MainActivity.this, "touch.................."+deltaX+" "+deltaY, Toast.LENGTH_SHORT).show();
+                                        if (abs(deltaX) > 10)
+                                        {
+                                            int addX=(int)deltaX/40;
+                                            totalPan=(totalPan+addX);
+                                        }
+
+                                        if (abs(deltaY) > 10)
+                                        {
+                                            int addY=(int)deltaY/100;
+                                            totalTilt=(totalTilt+addY);
+                                            if (totalTilt>60)
+                                            {totalTilt=60;}
+                                            if (totalTilt<-60)
+                                            {totalTilt=-60;}
+                                        }
+                                        else {
+                                        }
+                                        return true;
                                 }
-                                else
-                                {
-                                    pan=(pan+add)%360;
-                                }
-                               // if (pan>180){pan=pan-360;}
-                                if (pan<0){pan=pan+360;}
-                                Toast.makeText(MainActivity.this, "touch..................", Toast.LENGTH_SHORT).show();
+
                                 return true;
                             }
                         });
                         Long current = System.currentTimeMillis();
                         long playTime=current-start;
                         long i=0;
-                        while(playTime<20)
+                        while(playTime<1)
                         {   current = System.currentTimeMillis();
                             playTime=current-start;
 
                         }
                         start=current;
                         long frameTime=current-FirstStart;
+                        if (chunk2display==15)
+                        {
+                            Long endTotal = System.currentTimeMillis();
+                            Long totalPlay=endTotal-startTotal;
+                            System.out.println("Total total Time:..................................................................:" +totalPlay);
+                            System.exit(0);
+                        }
                         if(ia==0)
                             {
-                                System.out.println("....................................before-->..dlPan: "+dlChunkPan+" CurrentPan: "+pan);
-                                int dlChunkPan1x=dlChunkPan;
-                                if(dlChunkPan1x<0)
-                                {
-                                    dlChunkPan1x=dlChunkPan1x+360;
-                                }
-                                pan = (dlChunkPan1x-pan);
-
-                                System.out.println("...................................... FramePan: "+pan);
-
+                                dlChunkPan1xx=lastChunkReqPan;
                             }
-                        int cameraPan=pan;
+                        int cameraPan=totalPan-dlChunkPan1xx;
 
-                       // System.out.println("frame: "+ (chunk2display*120+ia)+" FrameTime: "+frameTime+" Pan: "+cameraPan);
-                       // System.out.println("frame: "+ ia+" chunk: "+chunk2display +" dled: "+totalDlChunk+ " pled: "+totalPlChunk);
-                        CoREoperationPerFrame(m1.getNativeObjAddr(), ia, chunk2display, cameraPan); // ia increaseas and one after another frame comses out
+
+                        CoREoperationPerFrame(m1.getNativeObjAddr(), ia, chunk2display, cameraPan,dlChunkPan1xx ); // ia increaseas and one after another frame comses out
                         bm = Bitmap.createBitmap(m1.cols(), m1.rows(), Bitmap.Config.ARGB_8888);
                         Utils.matToBitmap(m1, bm);
 
@@ -279,14 +321,11 @@ public class MainActivity extends AppCompatActivity {
         String fPath="";
         try
         {
-            //String sourceBaseAddr="http://192.168.43.179:80/3vid2crf3trace/android/crf30/";
-           // String sourceBaseAddr="http://10.0.2.2:80/3vid2crf3trace/android/crf30/";
+            //String sourceBaseAddr="http://10.0.2.2:80/3vid2crf3trace/android/tilt0/";
             String sourceBaseAddr="http://192.168.43.179:80/3vid2crf3trace/android/tilt0/";
-            String result="rhino.webm4_"+getFileName2Req(sourceBaseAddr,chunkN, pan);
+            String result="30_rhino.webm4_"+getFileName2Req(sourceBaseAddr,chunkN, totalPan);
            // String result="30_rhino.AVI6_"+getFileName2Req(sourceBaseAddr,chunkN, pan);
-            //URL url = new URL("http://128.10.120.226:80/video1.mp4");
             String name=sourceBaseAddr+result;
-            //String name1=sourceBaseAddr+"diving_1_10_0.mp4";
             URL url = new URL(name);
             String fname=result;
            // Toast.makeText(MainActivity.this, result, Toast.LENGTH_SHORT).show();
@@ -305,7 +344,6 @@ public class MainActivity extends AppCompatActivity {
 
             if (!file.exists())
             {
-
                 file.createNewFile();
                 FileOutputStream outStream = new FileOutputStream(file);
                 byte[] buff = new byte[500 * 1024];
@@ -335,33 +373,26 @@ public class MainActivity extends AppCompatActivity {
     public String getFileName2Req(String srcBaseAddr, int chunkN, int pan)
     {
 
-        double pann = pan;
-        double tiltt = 0;
-        int latAngle = 20;
-        int temp = -90 - latAngle / 2;
+       // lastChunkReqPan=pan;
+        int panTemp=-185;
+        int panAngle=5;
+        while ((int) pan > panTemp) {
+            panTemp = panTemp + panAngle;
+        }
+        int reqpann = panTemp;
+        lastChunkReqPan=panTemp;
+        reqpann=reqpann%360;
 
-        while ((int) tiltt >= temp) {
-            temp = temp + latAngle;
-
-        }
-        int reqtilt = (2 * temp - latAngle) / 2;
-        int panAngle = (int) abs((20) / cos(3.1416 * reqtilt / 180));   //argument in radian
-        if (panAngle % 2 != 0) {
-            panAngle += 1;
-        }
-        temp = -180 - panAngle / 2;
-        while ((int) pann >= temp) {
-            temp = temp + panAngle;
-        }
-        int reqpann = (2 * temp - panAngle) / 2;
         if (reqpann>180)
         {
             reqpann=reqpann-360;
         }
-         dlChunkPan=reqpann;
-       // dlChunkPan=pan;
+        if (reqpann<-180)
+        {
+            reqpann=360+reqpann;
+        }
 
-        reqtilt=0;
+        int reqtilt=0;
         String result= chunkN + "_" + reqtilt + "_" + reqpann + ".avi.mp4";
 
         return result;
@@ -369,5 +400,5 @@ public class MainActivity extends AppCompatActivity {
 
     public native void initCoREparameters();
     public native int loadVideoFromDevice(long addr, String videoPath, int chunkN);
-    public native void CoREoperationPerFrame(long addr, int fi, int chunkN, int cameraPan);
+    public native void CoREoperationPerFrame(long addr, int fi, int chunkN, int cameraPan, int baseAngle);
 }
