@@ -1,8 +1,11 @@
 package com.example.core;
 
 import android.Manifest;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
@@ -20,6 +23,7 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 
 import java.io.BufferedInputStream;
@@ -41,7 +45,8 @@ import static java.lang.StrictMath.abs;
 
 
 public class MainActivity extends AppCompatActivity {
-    int chunk2display=1;
+    volatile int chunk2display=1;
+    volatile int totalChunk2display=1;
     volatile int yes2DL=0;
     volatile int yes2PL=0;
     volatile int dlFinished=0;
@@ -52,11 +57,15 @@ public class MainActivity extends AppCompatActivity {
     volatile  int dlChunkPan=0;
     volatile  int dlChunkPan1=0;
     volatile int lastChunkReqPan=0;
+    volatile int lastChunkReqTilt=0;
     volatile int totalPan=0;
     volatile int totalTilt=0;
     volatile long startTotal=0;
     volatile float downX=0;
     volatile float downY=0;
+    volatile int perVideoMx=30;
+    volatile long lastTime=0;
+    volatile String resultPart="30_roller.mkv0_";
 
     private static final String TAG = "OCVSample::Activity";
     private BaseLoaderCallback _baseLoaderCallback = new BaseLoaderCallback(this) {
@@ -131,7 +140,8 @@ public class MainActivity extends AppCompatActivity {
             {
                 if(yes2DL==1)
                 {
-                    String videoPath=downloadFileHttp(chunk2load, totalPan);
+                    String videoPath=downloadFileHttp(chunk2load, totalPan, totalTilt);
+                    System.out.println("Path:"+videoPath);
                     int xx=pan;
                     dlFinished=loadVideoFromDevice(addr, videoPath, chunk2load);
                     System.out.println("dl finished.total DL:..................................................................."+chunk2load);
@@ -154,8 +164,11 @@ public class MainActivity extends AppCompatActivity {
 
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    helloworld();
+                    load_image();
                     initCoREparameters();
                     System.out.println("CoRE param updated..........................................>>>>");
+                    Toast.makeText(MainActivity.this, "Wait for video to start........", Toast.LENGTH_SHORT).show();
                     startTotal = System.currentTimeMillis();
                     yes2DL=1;
                     dlThread();
@@ -189,11 +202,12 @@ public class MainActivity extends AppCompatActivity {
         System.out.println("here..");
         final Handler handler = new Handler();
         handler.postDelayed(new Runnable(){
-            Long start = System.currentTimeMillis();
             int ia=0;
             Mat m1=new Mat();
             Long FirstStart = System.currentTimeMillis();
+
             int dlChunkPan1xx=0;
+            int dlChunkTilt1xx=0;
             public void run()
                     {
                         int lastPan=0;
@@ -201,28 +215,7 @@ public class MainActivity extends AppCompatActivity {
                         ImageView iv = (ImageView) findViewById(R.id.imageView);
                         iv.invalidate();
                         Bitmap bm;
-//                        iv.setOnTouchListener(new View.OnTouchListener(){
-//                            @Override
-//                            public boolean onTouch(View v, MotionEvent event) {
-//                                final float x = event.getX();
-//                                final float y = event.getY();
-//                                float lastXAxis = x;
-//                                float lastYAxis = y;
-//                                int add=5;
-//                                System.out.println("touch.............x:>: "+ x+" y:"+ y);
-//                                if (x>1200)
-//                                {
-//                                    totalPan=(totalPan+add);
-//                                }
-//                                else
-//                                {
-//                                    totalPan=(totalPan-add);
-//                                }
-//
-//                                Toast.makeText(MainActivity.this, "touch..................", Toast.LENGTH_SHORT).show();
-//                                return true;
-//                            }
-//                        });
+
                         iv.setOnTouchListener(new View.OnTouchListener(){
                             @Override
                             public boolean onTouch(View v, MotionEvent event) {
@@ -237,7 +230,7 @@ public class MainActivity extends AppCompatActivity {
                                     case MotionEvent.ACTION_UP:
                                         float deltaX = event.getX() - downX;
                                         float deltaY = event.getY() - downY;
-                                        Toast.makeText(MainActivity.this, "touch.................."+deltaX+" "+deltaY, Toast.LENGTH_SHORT).show();
+                                        //Toast.makeText(MainActivity.this, "touch.................."+deltaX+" "+deltaY, Toast.LENGTH_SHORT).show();
                                         if (abs(deltaX) > 10)
                                         {
                                             int addX=(int)deltaX/40;
@@ -248,10 +241,10 @@ public class MainActivity extends AppCompatActivity {
                                         {
                                             int addY=(int)deltaY/100;
                                             totalTilt=(totalTilt+addY);
-                                            if (totalTilt>60)
-                                            {totalTilt=60;}
-                                            if (totalTilt<-60)
-                                            {totalTilt=-60;}
+                                            if (totalTilt>80)
+                                            {totalTilt=80;}
+                                            if (totalTilt<-80)
+                                            {totalTilt=-80;}
                                         }
                                         else {
                                         }
@@ -262,30 +255,26 @@ public class MainActivity extends AppCompatActivity {
                             }
                         });
                         Long current = System.currentTimeMillis();
-                        long playTime=current-start;
-                        long i=0;
-                        while(playTime<1)
+                        long playTime=current-lastTime;
+                        while(playTime<48)
                         {   current = System.currentTimeMillis();
-                            playTime=current-start;
+                            playTime=current-lastTime;
+                        }
+                        lastTime=current;
 
-                        }
-                        start=current;
                         long frameTime=current-FirstStart;
-                        if (chunk2display==15)
-                        {
-                            Long endTotal = System.currentTimeMillis();
-                            Long totalPlay=endTotal-startTotal;
-                            System.out.println("Total total Time:..................................................................:" +totalPlay);
-                            System.exit(0);
-                        }
+
+
+
                         if(ia==0)
                             {
                                 dlChunkPan1xx=lastChunkReqPan;
+                                dlChunkTilt1xx=lastChunkReqTilt;
                             }
                         int cameraPan=totalPan-dlChunkPan1xx;
+                        int cameraTilt=totalTilt-dlChunkTilt1xx;
 
-
-                        CoREoperationPerFrame(m1.getNativeObjAddr(), ia, chunk2display, cameraPan,dlChunkPan1xx ); // ia increaseas and one after another frame comses out
+                        CoREoperationPerFrame(m1.getNativeObjAddr(), ia, chunk2display, totalPan, totalTilt,dlChunkPan1xx, dlChunkTilt1xx ); // ia increaseas and one after another frame comses out
                         bm = Bitmap.createBitmap(m1.cols(), m1.rows(), Bitmap.Config.ARGB_8888);
                         Utils.matToBitmap(m1, bm);
 
@@ -294,6 +283,7 @@ public class MainActivity extends AppCompatActivity {
                         if (ia==119)
                         {
                             chunk2display=chunk2display+1;
+                            totalChunk2display=totalChunk2display+1;
                             totalPlChunk=totalPlChunk+1;
                             while(yes2PL==0)
                             {
@@ -301,44 +291,75 @@ public class MainActivity extends AppCompatActivity {
                             System.out.println("ended...............................................................................................................");
                             ia=-1;
 
+                            if (totalChunk2display==perVideoMx)
+                            {
+                                Toast.makeText(MainActivity.this, "Thank you for Watching.", Toast.LENGTH_SHORT).show();
+                                Long endTotal = System.currentTimeMillis();
+                                Long totalPlay=endTotal-startTotal;
+                                System.out.println("Total total Time:..................................................................:" +totalPlay);
+
+                                String url = "https://forms.gle/sxgZQrdRyANFgYq59";
+                                //String url = "https://forms.gle/cfUdaqSkifimhqbh6";
+                                //String url = "https://forms.gle/dHwPywC1Zu5ZNr4e8";
+                                Intent i = new Intent(Intent.ACTION_VIEW);
+                                i.setData(Uri.parse(url));
+                                startActivity(i);
+                                System.exit(0);
+                            }
 
                         }
 
                         if (ia==60)
                         {
+                            System.out.println("Chunk..............................................................................................................."+chunk2display);
+
+//                            if (chunk2display==perVideoMx)
+//                            {
+//                                Toast.makeText(MainActivity.this, "Video Should Change.", Toast.LENGTH_SHORT).show();
+//                                resultPart="30_rhino.webm0_";
+//                            }
+//                            if (chunk2display==perVideoMx*2)
+//                            {
+//                                Toast.makeText(MainActivity.this, "Thank you for Watching.", Toast.LENGTH_SHORT).show();
+//                                resultPart="30_roller.mkv0_";
+//                            }
+
                             yes2DL=1;
                             yes2PL=0;
                         }
                         ia++;
+
+
+
                     }
                 }, 2);
 
     }
 
 
-    public String downloadFileHttp(int chunkN, int pan)
+    public String downloadFileHttp(int chunkN, int pan, int tilt)
     {
         String fPath="";
+        String name="";
+        String fname="";
         try
         {
-            //String sourceBaseAddr="http://10.0.2.2:80/3vid2crf3trace/android/tilt0/";
-            String sourceBaseAddr="http://192.168.43.179:80/3vid2crf3trace/android/tilt0/";
-            String result="30_rhino.webm4_"+getFileName2Req(sourceBaseAddr,chunkN, totalPan);
-           // String result="30_rhino.AVI6_"+getFileName2Req(sourceBaseAddr,chunkN, pan);
-            String name=sourceBaseAddr+result;
+            String sourceBaseAddr="http://192.168.43.179:80/3vid2crf3trace/android/2min_30/";
+           // String sourceBaseAddr="http://10.0.2.2:80/3vid2crf3trace/android/2min_30/";
+            String result=resultPart+getFileName2Req(sourceBaseAddr,chunkN, totalPan, totalTilt);
+            name=sourceBaseAddr+result;
             URL url = new URL(name);
-            String fname=result;
-           // Toast.makeText(MainActivity.this, result, Toast.LENGTH_SHORT).show();
-            System.out.println("requested file name................................>>>"+ name+ " "+chunkN);
-            //System.out.println("path "+Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS));
+            fname=result;
+            System.out.println("Requested file name................................>>>"+ name);
 
             URLConnection ucon = url.openConnection();
-            ucon.setReadTimeout(50000);
-            ucon.setConnectTimeout(100000);
+            ucon.setReadTimeout(1000);
+            ucon.setConnectTimeout(1000);
             InputStream is = ucon.getInputStream();
             BufferedInputStream inStream = new BufferedInputStream(is, 1024 * 500);
             File file = new File("/storage/emulated/0/Download/" + fname);
             fPath=file.getPath();
+            System.out.println("File name................................>>>"+ fPath);
           // fPath=Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)+"/"+ fname;
             //fPath="/storage/emulated/0/Download/diving_1_10_40.mp4";
 
@@ -363,24 +384,24 @@ public class MainActivity extends AppCompatActivity {
         catch (Exception e)
         {
             e.printStackTrace();
+            String fileB = "/storage/emulated/0/Download/" + fname;
             System.out.println("Cant save file.......>>>"+fPath);
-            System.exit(1);
+            return  fileB;
         }
 
         return fPath;
     }
 
-    public String getFileName2Req(String srcBaseAddr, int chunkN, int pan)
+    public String getFileName2Req(String srcBaseAddr, int chunkN, int pan, int tilt)
     {
 
-       // lastChunkReqPan=pan;
-        int panTemp=-185;
-        int panAngle=5;
-        while ((int) pan > panTemp) {
+        int panTemp=-200;
+        int panAngle=20;
+        while ((int) pan >= panTemp) {
             panTemp = panTemp + panAngle;
         }
-        int reqpann = panTemp;
-        lastChunkReqPan=panTemp;
+        int reqpann = panTemp-panAngle;
+        lastChunkReqPan=reqpann;
         reqpann=reqpann%360;
 
         if (reqpann>180)
@@ -392,13 +413,68 @@ public class MainActivity extends AppCompatActivity {
             reqpann=360+reqpann;
         }
 
-        int reqtilt=0;
-        String result= chunkN + "_" + reqtilt + "_" + reqpann + ".avi.mp4";
 
-        return result;
+        int tempTilt=-80;
+        while(tilt>=tempTilt)
+        {
+            tempTilt=tempTilt+panAngle;
+        }
+        int reqTilt=tempTilt-panAngle;
+        if (reqTilt>60)
+        {
+            reqTilt=60;
+        }
+        if (reqTilt<-60)
+        {
+            reqTilt=-60;
+        }
+        lastChunkReqTilt=reqTilt;
+        int chunknn=chunkN%perVideoMx;
+        if(chunknn==0)
+        {
+            chunknn=chunknn+1;
+        }
+        if ((chunknn==5 || chunknn ==7) && (reqTilt==0 && reqpann==0)){
+            String result= chunknn + "_" + "-20" + "_" + "20" + ".avi";
+            System.out.println(" Changed...................>>>");
+            return result;
+        }
+        else{
+            String result= chunknn + "_" + reqTilt + "_" + reqpann + ".avi";
+            return result;
+        }
+
+
+    }
+
+    public void load_image()
+    {
+        String path=Environment.getExternalStorageDirectory()+"/Download/11.jpg";
+        String path1=Environment.getExternalStorageDirectory().getPath();
+
+        File imgFile = new File(path);
+        if(imgFile.exists())
+        {
+            Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
+            ImageView imageView=(ImageView)findViewById(R.id.imageView);
+            imageView.setImageBitmap(myBitmap);
+        }
+    }
+
+    public void helloworld() {
+        // make a mat and draw something
+        Mat m = Mat.zeros(100,400, CvType.CV_8UC3);
+
+        // convert to bitmap:
+        Bitmap bm = Bitmap.createBitmap(m.cols(), m.rows(),Bitmap.Config.ARGB_8888);
+        Utils.matToBitmap(m, bm);
+
+        // find the imageview and draw it!
+        ImageView iv = (ImageView) findViewById(R.id.imageView);
+        iv.setImageBitmap(bm);
     }
 
     public native void initCoREparameters();
     public native int loadVideoFromDevice(long addr, String videoPath, int chunkN);
-    public native void CoREoperationPerFrame(long addr, int fi, int chunkN, int cameraPan, int baseAngle);
+    public native void CoREoperationPerFrame(long addr, int fi, int chunkN, int cameraPan, int cameratilt, int baseAnglePan, int baseAngleTilt);
 }
