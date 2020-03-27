@@ -1,10 +1,9 @@
-package com.example.core;
+package com.example.coreAndroid;
 
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -23,15 +22,22 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
-import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Scanner;
+import java.util.Vector;
 
 import static android.os.Environment.getExternalStorageState;
 import static java.lang.Boolean.TRUE;
@@ -45,27 +51,40 @@ import static java.lang.StrictMath.abs;
 
 
 public class MainActivity extends AppCompatActivity {
-    volatile int chunk2display=1;
-    volatile int totalChunk2display=1;
+    int chunk2display=1;
     volatile int yes2DL=0;
     volatile int yes2PL=0;
-    volatile int dlFinished=0;
-    volatile int totalDlChunk=0;
     volatile int totalPlChunk=0;
     long   chunk2loadFile=1L;
     volatile int pan=0;
-    volatile  int dlChunkPan=0;
-    volatile  int dlChunkPan1=0;
+    volatile int tilt=0;
     volatile int lastChunkReqPan=0;
     volatile int lastChunkReqTilt=0;
     volatile int totalPan=0;
     volatile int totalTilt=0;
     volatile long startTotal=0;
+    volatile  int totalReqTiles=-1;
+    volatile int totalDlTiles=0;
     volatile float downX=0;
     volatile float downY=0;
-    volatile int perVideoMx=30;
-    volatile long lastTime=0;
-    volatile String resultPart="30_roller.mkv0_";
+    volatile int mxChunk=119;
+    volatile int select=1;
+    volatile int touched=0;
+    volatile int maxshift=40;
+    volatile int shiftcount=0;
+    volatile int addX=0;
+    volatile int addY=0;
+    volatile  int totalFrame=0;
+    volatile int record=0; //0 means trace plaly
+    volatile float fovMul=1;
+    //volatile String ip="http://192.168.43.179:80";
+    volatile String ip="http://10.0.0.4:80";
+
+
+    volatile Vector<Integer> vectorPan = new Vector<>();
+    volatile Vector<Integer> vectorTilt = new Vector<>();
+
+    volatile ArrayList<String> panTilt = new ArrayList<String>();
 
     private static final String TAG = "OCVSample::Activity";
     private BaseLoaderCallback _baseLoaderCallback = new BaseLoaderCallback(this) {
@@ -96,9 +115,6 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-
-
-
     @Override
     public void onResume() {
         super.onResume();
@@ -111,7 +127,6 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
-
 
     @Override
     public void onPause() {
@@ -134,49 +149,76 @@ public class MainActivity extends AppCompatActivity {
             Long addr= param[0];
             long x=param[1];
             long p=param[2];
-           // int pan=(int)p;
             int chunk2load=(int)x;
             while(true)
             {
                 if(yes2DL==1)
                 {
-                    String videoPath=downloadFileHttp(chunk2load, totalPan, totalTilt);
-                    System.out.println("Path:"+videoPath);
-                    int xx=pan;
-                    dlFinished=loadVideoFromDevice(addr, videoPath, chunk2load);
-                    System.out.println("dl finished.total DL:..................................................................."+chunk2load);
-                    totalDlChunk=totalDlChunk+1;
+                    System.out.println("doInBackground: dl ordered for chunk................................................................"+chunk2load);
+                    downloadFileHttp2QL360(chunk2load, totalPan, totalTilt );
+                    System.out.println("doInBackground: dl finished for chunk:..................................................................."+chunk2load);
                     yes2DL=0;
                     yes2PL=1;
                     chunk2load=chunk2load+1;
-                   dlChunkPan1=dlChunkPan;
                 }
             }
 
         }
     }
 
-
     @Override
     public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
         switch (requestCode) {
             case 1: {
+                String pathx="/storage/emulated/0/MichiganPan.txt";
+                String pathy="/storage/emulated/0/MichiganTilt.txt";
+
+                if(select==3){
+                         pathx="/storage/emulated/0/WisconsinPan.txt";
+                         pathy="/storage/emulated/0/WisconsinTilt.txt";
+                }
+                if (select==2)
+                {
+                    pathx="/storage/emulated/0/MinnesotaPan.txt";
+                    pathy="/storage/emulated/0/MinnesotaTilt.txt";
+                }
 
                 if (grantResults.length > 0
                         && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    helloworld();
-                    load_image();
                     initCoREparameters();
-                    System.out.println("CoRE param updated..........................................>>>>");
-                    Toast.makeText(MainActivity.this, "Wait for video to start........", Toast.LENGTH_SHORT).show();
+
+                    File file = new File(pathx);
+
+                    try{
+                    Scanner scanner = new Scanner(file);
+                    int [] tall = new int [100];
+                    int i = 0;
+                    while(scanner.hasNextInt())
+                    {
+                        vectorPan.add(scanner.nextInt());
+                    }
+                    }  catch(IOException ioe){
+                            ioe.printStackTrace();
+                             }
+                     file = new File(pathy);
+                    try{
+                        Scanner scanner = new Scanner(file);
+                        int [] tall = new int [100];
+                        int i = 0;
+                        while(scanner.hasNextInt())
+                        {
+                            vectorTilt.add(scanner.nextInt());
+                        }
+                    }  catch(IOException ioe){
+                        ioe.printStackTrace();
+                    }
+
+                System.out.println("CoRE param updated..........................................>>>>");
                     startTotal = System.currentTimeMillis();
                     yes2DL=1;
                     dlThread();
-                    while(totalPlChunk>=totalDlChunk)//totalDlChunk<=totalPlChunk
-                    {  }
+
                     playThread();
-
-
                 } else {
                     // permission denied, boo! Disable the functionality that depends on this permission.
                     Toast.makeText(MainActivity.this, "Permission denied to read your External storage", Toast.LENGTH_SHORT).show();
@@ -189,292 +231,438 @@ public class MainActivity extends AppCompatActivity {
 
     public void dlThread()
     {
-
                 Mat m = new Mat();
                 long cameraPan = totalPan;
-                new MyTask().execute(m.getNativeObjAddr(), chunk2loadFile, cameraPan);//calling load video from device using videocapture in background
+                long cameraTilt = totalTilt;
+                new MyTask().execute(m.getNativeObjAddr(), chunk2loadFile, cameraPan, cameraTilt);//calling load video from device using videocapture in background
 
     }
 
     public void playThread()
     {
-
-        System.out.println("here..");
+        System.out.println("function: playThread..");
         final Handler handler = new Handler();
         handler.postDelayed(new Runnable(){
+            Long start = System.currentTimeMillis();
             int ia=0;
             Mat m1=new Mat();
             Long FirstStart = System.currentTimeMillis();
-
             int dlChunkPan1xx=0;
             int dlChunkTilt1xx=0;
+            int timeCond=20;
             public void run()
                     {
                         int lastPan=0;
 
                         ImageView iv = (ImageView) findViewById(R.id.imageView);
-                        iv.invalidate();
+                       // iv.invalidate();
                         Bitmap bm;
-
                         iv.setOnTouchListener(new View.OnTouchListener(){
                             @Override
                             public boolean onTouch(View v, MotionEvent event) {
                                 int add=5;
+                                touched=1;
+                                shiftcount=0;
                                 boolean mIsSwiping = false;
                                 switch(event.getActionMasked()) {
                                     case MotionEvent.ACTION_DOWN: {
-                                        downX = event.getX();
-                                        downY=event.getY();
-                                        break;
+                                       downX = event.getX();
+                                       downY=event.getY();
+                                       break;
                                     }
                                     case MotionEvent.ACTION_UP:
                                         float deltaX = event.getX() - downX;
                                         float deltaY = event.getY() - downY;
-                                        //Toast.makeText(MainActivity.this, "touch.................."+deltaX+" "+deltaY, Toast.LENGTH_SHORT).show();
-                                        if (abs(deltaX) > 10)
+                                       // Toast.makeText(MainActivity.this, "touch.................."+deltaX+" "+deltaY, Toast.LENGTH_SHORT).show();
+                                        if (abs(deltaX) > 40)
                                         {
-                                            int addX=(int)deltaX/40;
-                                            totalPan=(totalPan+addX);
+                                            addX=(int)deltaX/(20*maxshift);
+
                                         }
 
-                                        if (abs(deltaY) > 10)
+                                       if (abs(deltaY) > 20)
                                         {
-                                            int addY=(int)deltaY/100;
-                                            totalTilt=(totalTilt+addY);
-                                            if (totalTilt>80)
-                                            {totalTilt=80;}
-                                            if (totalTilt<-80)
-                                            {totalTilt=-80;}
+                                            addY=(int)deltaY/(maxshift*20);
+
+
                                         }
                                         else {
+                                            }
+                                            return true;
                                         }
-                                        return true;
-                                }
 
                                 return true;
                             }
                         });
-                        Long current = System.currentTimeMillis();
-                        long playTime=current-lastTime;
-                        while(playTime<48)
-                        {   current = System.currentTimeMillis();
-                            playTime=current-lastTime;
-                        }
-                        lastTime=current;
+                        if(record!=0)
+                        {
+                           if (touched==1 && shiftcount<10) {
+                                totalPan = (totalPan + addX);
+                                if (totalPan >= 360) {
+                                    totalPan = totalPan - 360;
+                                }
+                                if (totalPan <= -360) {
+                                    totalPan = totalPan + 360;
+                                }
 
-                        long frameTime=current-FirstStart;
+                                totalTilt=(totalTilt+addY);
+                                if (totalTilt>60)
+                                {totalTilt=60;}
+                                if (totalTilt<-60)
+                                {totalTilt=-60;}
 
-
-
-                        if(ia==0)
-                            {
-                                dlChunkPan1xx=lastChunkReqPan;
-                                dlChunkTilt1xx=lastChunkReqTilt;
+                                shiftcount=shiftcount+1;
                             }
-                        int cameraPan=totalPan-dlChunkPan1xx;
-                        int cameraTilt=totalTilt-dlChunkTilt1xx;
+                        }
+                        Long current = System.currentTimeMillis();
+                        long playTime=current-start;
+                        long i=0;
+                        if (chunk2display==mxChunk)
+                        {
+                            Long endTotal = System.currentTimeMillis();
+                            Long totalPlay=endTotal-startTotal;
+                            System.out.println("Total chunk: dl req and total Time:..................................................................."+totalDlTiles+";" +totalReqTiles+";" +totalPlay);
 
-                        CoREoperationPerFrame(m1.getNativeObjAddr(), ia, chunk2display, totalPan, totalTilt,dlChunkPan1xx, dlChunkTilt1xx ); // ia increaseas and one after another frame comses out
+                           String url = "https://forms.gle/KpmbsmJqYjh5pwe67";   //michigan
+                            if (select==2) {
+                                url="https://forms.gle/Mkh5SkKHD1nwBHtk8";  //minne
+                            }
+                            if(select==3) {
+                                url = "https://forms.gle/vwFJq7NThP5k4QbN6";  //winsconsin
+                            }
+                            Intent ix = new Intent(Intent.ACTION_VIEW);
+                            ix.setData(Uri.parse(url));
+                            startActivity(ix);
+                            Iterator it= panTilt.iterator();
+
+                            if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())) {
+                                try {
+                                        FileOutputStream fOut=
+                                                new FileOutputStream(
+                                                        new File(Environment.getExternalStoragePublicDirectory(
+                                                                Environment.DIRECTORY_DOWNLOADS), "Michigan.txt"), TRUE
+                                                );
+
+                                    if(select==2){
+                                        fOut =  new FileOutputStream(
+                                                    new File(Environment.getExternalStoragePublicDirectory(
+                                                            Environment.DIRECTORY_DOWNLOADS), "Minnesota.txt"),TRUE
+                                            );}
+                                    if(select==3) {
+                                        fOut =  new FileOutputStream(
+                                                        new File(Environment.getExternalStoragePublicDirectory(
+                                                                Environment.DIRECTORY_DOWNLOADS), "Wisconsin.txt"), TRUE
+                                                );
+                                    }
+
+
+                                    OutputStreamWriter myOutWriter = new OutputStreamWriter(fOut);
+                                    myOutWriter.append("new user:"+"\n");
+                                    while(it.hasNext())
+                                        myOutWriter.append(it.next().toString()+"\n");
+
+                                    myOutWriter.close();
+                                    fOut.close();
+                                    Log.v("MyApp","File has been written");
+                                } catch(Exception ex) {
+                                    ex.printStackTrace();
+                                    Log.v("MyApp","File didn't write");
+                                }
+                            }
+
+                            System.exit(0);
+                        }
+                        if (chunk2display==1 && ia==0)
+                        {
+                            timeCond=5000;
+                        }
+                        else{timeCond=80;}
+
+                        while(totalDlTiles<24*chunk2display)
+                        {   current = System.currentTimeMillis();
+                            playTime=current-start;
+                        }
+                        System.out.println("It came here: totalDlTiles............................................................"+totalDlTiles);
+                        start=current;
+                        long frameTime=current-FirstStart;
+                        panTilt.add(totalPan+"_"+totalTilt);
+                        if(record==0){
+                            totalPan=vectorPan.get(totalFrame);
+                            totalTilt=vectorTilt.get(totalFrame);
+                            totalFrame=totalFrame+1;
+                        }
+                      //  System.out.println("current frame pan and tilt..................................................................."+chunk2display+";"+ia+";"+totalPan+";" +totalTilt);
+                        TileOperationPerFrame(m1.getNativeObjAddr(), ia, chunk2display, totalPan, totalTilt); // ia increaseas and one after another frame comses out
                         bm = Bitmap.createBitmap(m1.cols(), m1.rows(), Bitmap.Config.ARGB_8888);
                         Utils.matToBitmap(m1, bm);
-
+                        iv.setImageURI(null);
                         iv.setImageBitmap(bm);
                         handler.postDelayed(this, 1);
-                        if (ia==119)
+                        if (ia==29)
                         {
                             chunk2display=chunk2display+1;
-                            totalChunk2display=totalChunk2display+1;
                             totalPlChunk=totalPlChunk+1;
                             while(yes2PL==0)
                             {
                             }
-                            System.out.println("ended...............................................................................................................");
+
                             ia=-1;
-
-                            if (totalChunk2display==perVideoMx)
-                            {
-                                Toast.makeText(MainActivity.this, "Thank you for Watching.", Toast.LENGTH_SHORT).show();
-                                Long endTotal = System.currentTimeMillis();
-                                Long totalPlay=endTotal-startTotal;
-                                System.out.println("Total total Time:..................................................................:" +totalPlay);
-
-                                String url = "https://forms.gle/sxgZQrdRyANFgYq59";
-                                //String url = "https://forms.gle/cfUdaqSkifimhqbh6";
-                                //String url = "https://forms.gle/dHwPywC1Zu5ZNr4e8";
-                                Intent i = new Intent(Intent.ACTION_VIEW);
-                                i.setData(Uri.parse(url));
-                                startActivity(i);
-                                System.exit(0);
-                            }
-
                         }
-
-                        if (ia==60)
+                        if (ia==5)
                         {
-                            System.out.println("Chunk..............................................................................................................."+chunk2display);
-
-//                            if (chunk2display==perVideoMx)
-//                            {
-//                                Toast.makeText(MainActivity.this, "Video Should Change.", Toast.LENGTH_SHORT).show();
-//                                resultPart="30_rhino.webm0_";
-//                            }
-//                            if (chunk2display==perVideoMx*2)
-//                            {
-//                                Toast.makeText(MainActivity.this, "Thank you for Watching.", Toast.LENGTH_SHORT).show();
-//                                resultPart="30_roller.mkv0_";
-//                            }
-
                             yes2DL=1;
                             yes2PL=0;
                         }
                         ia++;
-
-
-
                     }
                 }, 2);
 
     }
 
 
-    public String downloadFileHttp(int chunkN, int pan, int tilt)
+    public void downloadFileHttp(int chunkN, int pan, int tilt)
     {
         String fPath="";
-        String name="";
-        String fname="";
         try
         {
-            String sourceBaseAddr="http://192.168.43.179:80/3vid2crf3trace/android/2min_30/";
-           // String sourceBaseAddr="http://10.0.2.2:80/3vid2crf3trace/android/2min_30/";
-            String result=resultPart+getFileName2Req(sourceBaseAddr,chunkN, totalPan, totalTilt);
-            name=sourceBaseAddr+result;
-            URL url = new URL(name);
-            fname=result;
-            System.out.println("Requested file name................................>>>"+ name);
-
-            URLConnection ucon = url.openConnection();
-            ucon.setReadTimeout(1000);
-            ucon.setConnectTimeout(1000);
-            InputStream is = ucon.getInputStream();
-            BufferedInputStream inStream = new BufferedInputStream(is, 1024 * 500);
-            File file = new File("/storage/emulated/0/Download/" + fname);
-            fPath=file.getPath();
-            System.out.println("File name................................>>>"+ fPath);
-          // fPath=Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)+"/"+ fname;
-            //fPath="/storage/emulated/0/Download/diving_1_10_40.mp4";
-
-            if (!file.exists())
+            int [] tilesArr;
+            tilesArr=new int[24];
+            if (tilt>60)
             {
-                file.createNewFile();
-                FileOutputStream outStream = new FileOutputStream(file);
-                byte[] buff = new byte[500 * 1024];
+                tilt=60;
+            }
+            if (tilt<-60)
+            {
+                tilt=-60;
+            }
+            if (chunkN>59)
+            {chunkN=chunkN+0;}  //temp
+            getTilesNumber2req(tilesArr, fovMul, pan, tilt, chunkN);
+            String sourceBaseAddr=ip+"/3vid2crf3trace/android/divingT/30_diving_1min.avi";
 
-                int len;
-                while ((len = inStream.read(buff)) != -1) {
-                    outStream.write(buff, 0, len);
-                }
+            if(select==2) {
+                sourceBaseAddr=ip+"/3vid2crf3trace/android/rhinoT/30_rhino_1min.avi";
+                mxChunk=89;
 
-                outStream.flush();
-                outStream.close();
-                inStream.close();
             }
 
-            System.out.println("File saved.......>>>"+fPath);
+            if(select==3) {
+                sourceBaseAddr = ip+"/3vid2crf3trace/android/rollerT/30_roller_1min.avi";
+            }
+
+            for (int i=0; i<24; i++)
+            {
+                if (tilesArr[i]==1)
+                {       totalReqTiles=totalReqTiles+1;
+                        String name=sourceBaseAddr+"_"+chunkN+"_"+i+".avi";
+                        URL url = new URL(name);
+                        System.out.println("requested file name................................>>>"+ name);
+                        URLConnection ucon = url.openConnection();
+                        ucon.setReadTimeout(50000);
+                        ucon.setConnectTimeout(50000);
+                        InputStream is = ucon.getInputStream();
+                        BufferedInputStream inStream = new BufferedInputStream(is, 1024 * 500);
+                        File file = new File("/storage/emulated/0/divingT/30_diving_1min.avi_" + chunkN+"_"+i+".avi");
+
+                        if(select==2) {
+                             file = new File("/storage/emulated/0/rhinoT/30_rhino_1min.avi_" + chunkN+"_"+i+".avi");
+                        }
+                        if(select==3) {
+                            file = new File("/storage/emulated/0/rollerT/30_roller_1min.avi_" + chunkN + "_" + i + ".avi");
+                        }
+
+                      // fPath=file.getPath();
+                        fPath="/storage/emulated/0/divingT/30_diving_1min.avi_" + chunkN + "_" + i + ".avi";
+                        if(select==2)
+                        {
+                            fPath="/storage/emulated/0/rhinoT/30_rhino_1min.avi_" + chunkN + "_" + i + ".avi";
+                        }
+                        if(select==3)
+                        {
+                            fPath="/storage/emulated/0/rollerT/30_roller_1min.avi_" + chunkN + "_" + i + ".avi";
+                        }
+                        if (!file.exists())
+                        {
+
+                            file.createNewFile();
+                            FileOutputStream outStream = new FileOutputStream(file);
+                            byte[] buff = new byte[500 * 1024];
+
+                            int len;
+                            while ((len = inStream.read(buff)) != -1) {
+                                outStream.write(buff, 0, len);
+                            }
+
+                            outStream.flush();
+                            outStream.close();
+                            inStream.close();
+                        }
+
+                        loadVideoFromDevice(fPath, chunkN, i);
+                    System.out.println("Loading finished.total DL:..................................................................."+fPath+ i);
+                    totalDlTiles=totalDlTiles+1;
+                }
+
+            }
+
+            //totalDlTiles=totalDlTiles+1;
         }
+
         catch (Exception e)
         {
             e.printStackTrace();
-            String fileB = "/storage/emulated/0/Download/" + fname;
             System.out.println("Cant save file.......>>>"+fPath);
-            return  fileB;
+            System.exit(1);
         }
 
-        return fPath;
     }
-
-    public String getFileName2Req(String srcBaseAddr, int chunkN, int pan, int tilt)
+    public void downloadFileHttp2QL360(int chunkN, int pan, int tilt)
     {
+        String fPath="";
+        try
+        {
+            int [] tilesArr;
+            tilesArr=new int[24];
+            if (tilt>60)
+            {
+                tilt=60;
+            }
+            if (tilt<-60)
+            {
+                tilt=-60;
+            }
 
-        int panTemp=-200;
-        int panAngle=20;
-        while ((int) pan >= panTemp) {
-            panTemp = panTemp + panAngle;
-        }
-        int reqpann = panTemp-panAngle;
-        lastChunkReqPan=reqpann;
-        reqpann=reqpann%360;
+            getTilesNumber2req(tilesArr, fovMul, pan, tilt, chunkN);
+            String sourceBaseAddr="";
 
-        if (reqpann>180)
-        {
-            reqpann=reqpann-360;
-        }
-        if (reqpann<-180)
-        {
-            reqpann=360+reqpann;
-        }
+            for (int i=0; i<24; i++)
+            {
+                totalReqTiles=totalReqTiles+1;
+                if (tilesArr[i]==1)
+                {
+                    sourceBaseAddr=ip+"/3vid2crf3trace/android/divingT/30_diving_1min.avi";
+
+                    if(select==2) {
+                        sourceBaseAddr=ip+"/3vid2crf3trace/android/rhinoT/30_rhino_1min.avi";
+                        mxChunk=89;
+                    }
+                    if(select==3) {
+                        sourceBaseAddr = ip+"/3vid2crf3trace/android/rollerT/30_roller_1min.avi";
+                    }
+
+                    String name=sourceBaseAddr+"_"+chunkN+"_"+i+".avi";
+                    URL url = new URL(name);
+                    System.out.println("requested file name................................>>>"+ name);
+                    URLConnection ucon = url.openConnection();
+                    ucon.setReadTimeout(50000);
+                    ucon.setConnectTimeout(50000);
+                    InputStream is = ucon.getInputStream();
+                    BufferedInputStream inStream = new BufferedInputStream(is, 1024 * 500);
+                    File file = new File("/storage/emulated/0/divingT/30_diving_1min.avi_" + chunkN+"_"+i+".avi");
+
+                    if(select==2) {
+                        file = new File("/storage/emulated/0/rhinoT/30_rhino_1min.avi_" + chunkN+"_"+i+".avi");
+                    }
+                    if(select==3) {
+                        file = new File("/storage/emulated/0/rollerT/30_roller_1min.avi_" + chunkN + "_" + i + ".avi");
+                    }
 
 
-        int tempTilt=-80;
-        while(tilt>=tempTilt)
-        {
-            tempTilt=tempTilt+panAngle;
-        }
-        int reqTilt=tempTilt-panAngle;
-        if (reqTilt>60)
-        {
-            reqTilt=60;
-        }
-        if (reqTilt<-60)
-        {
-            reqTilt=-60;
-        }
-        lastChunkReqTilt=reqTilt;
-        int chunknn=chunkN%perVideoMx;
-        if(chunknn==0)
-        {
-            chunknn=chunknn+1;
-        }
-        if ((chunknn==5 || chunknn ==7) && (reqTilt==0 && reqpann==0)){
-            String result= chunknn + "_" + "-20" + "_" + "20" + ".avi";
-            System.out.println(" Changed...................>>>");
-            return result;
-        }
-        else{
-            String result= chunknn + "_" + reqTilt + "_" + reqpann + ".avi";
-            return result;
+                    fPath="/storage/emulated/0/divingT/30_diving_1min.avi_" + chunkN + "_" + i + ".avi";
+                    if(select==2)
+                    {
+                        fPath="/storage/emulated/0/rhinoT/30_rhino_1min.avi_" + chunkN + "_" + i + ".avi";
+                    }
+                    if(select==3)
+                    {
+                        fPath="/storage/emulated/0/rollerT/30_roller_1min.avi_" + chunkN + "_" + i + ".avi";
+                    }
+                    if (!file.exists())
+                    {
+
+                        file.createNewFile();
+                        FileOutputStream outStream = new FileOutputStream(file);
+                        byte[] buff = new byte[500 * 1024];
+
+                        int len;
+                        while ((len = inStream.read(buff)) != -1) {
+                            outStream.write(buff, 0, len);
+                        }
+
+                        outStream.flush();
+                        outStream.close();
+                        inStream.close();
+                    }
+
+                    loadVideoFromDevice(fPath, chunkN, i);
+                    System.out.println("Loading finished.total DL:..................................................................."+fPath+ i);
+
+                }
+                else{
+                    sourceBaseAddr=ip+"/3vid2crf3trace/android/divingT/45_30_diving_1min.avi";
+                    if(select==2) {
+                        sourceBaseAddr=ip+"/3vid2crf3trace/android/rhinoT/45_30_rhino_1min.avi";
+                        mxChunk=89; }
+                    if(select==3) {
+                        sourceBaseAddr = ip+"/3vid2crf3trace/android/rollerT/45_30_roller_1min.avi";
+                    }
+                    String name=sourceBaseAddr+"_"+chunkN+"_"+i+".avi.avi";
+                    URL url = new URL(name);
+                    System.out.println("requested low qual file name................................>>>"+ name);
+                    URLConnection ucon = url.openConnection();
+                    ucon.setReadTimeout(50000);
+                    ucon.setConnectTimeout(50000);
+                    InputStream is = ucon.getInputStream();
+                    BufferedInputStream inStream = new BufferedInputStream(is, 1024 * 500);
+                    File file = new File("/storage/emulated/0/divingT/45_30_diving_1min.avi_" + chunkN+"_"+i+".avi");
+                    if(select==2) {
+                        file = new File("/storage/emulated/0/rhinoT/45_30_rhino_1min.avi_" + chunkN+"_"+i+".avi");
+                    }
+                    if(select==3) {
+                        file = new File("/storage/emulated/0/rollerT/45_30_roller_1min.avi_" + chunkN + "_" + i + ".avi");
+                    }
+                    fPath="/storage/emulated/0/divingT/45_30_diving_1min.avi_" + chunkN + "_" + i + ".avi";
+                    if(select==2)
+                    {
+                        fPath="/storage/emulated/0/rhinoT/45_30_rhino_1min.avi_" + chunkN + "_" + i + ".avi";
+                    }
+                    if(select==3)
+                    {
+                        fPath="/storage/emulated/0/rollerT/45_30_roller_1min.avi_" + chunkN + "_" + i + ".avi";
+                    }
+
+                    if (!file.exists()) {
+                        file.createNewFile();
+                        FileOutputStream outStream = new FileOutputStream(file);
+                        byte[] buff = new byte[500 * 1024];
+
+                        int len;
+                        while ((len = inStream.read(buff)) != -1) {
+                            outStream.write(buff, 0, len);
+                        }
+                        outStream.flush();
+                        outStream.close();
+                        inStream.close();
+                        loadVideoFromDevice(fPath, chunkN, i);
+                        System.out.println("Loading finished in low qual.total DL:..................................................................." + fPath + i);
+                    }
+                }
+                totalDlTiles=totalDlTiles+1;
+            }
+
         }
 
+        catch (Exception e)
+        {
+            e.printStackTrace();
+            System.out.println("Cant save file..................>>>"+fPath);
+            System.exit(1);
+        }
 
     }
 
-    public void load_image()
-    {
-        String path=Environment.getExternalStorageDirectory()+"/Download/11.jpg";
-        String path1=Environment.getExternalStorageDirectory().getPath();
-
-        File imgFile = new File(path);
-        if(imgFile.exists())
-        {
-            Bitmap myBitmap = BitmapFactory.decodeFile(imgFile.getAbsolutePath());
-            ImageView imageView=(ImageView)findViewById(R.id.imageView);
-            imageView.setImageBitmap(myBitmap);
-        }
-    }
-
-    public void helloworld() {
-        // make a mat and draw something
-        Mat m = Mat.zeros(100,400, CvType.CV_8UC3);
-
-        // convert to bitmap:
-        Bitmap bm = Bitmap.createBitmap(m.cols(), m.rows(),Bitmap.Config.ARGB_8888);
-        Utils.matToBitmap(m, bm);
-
-        // find the imageview and draw it!
-        ImageView iv = (ImageView) findViewById(R.id.imageView);
-        iv.setImageBitmap(bm);
-    }
-
+    public native int  getTilesNumber2req(int tilesArr[], float fovMul, int pan, int tilt, int chunkN);
     public native void initCoREparameters();
-    public native int loadVideoFromDevice(long addr, String videoPath, int chunkN);
-    public native void CoREoperationPerFrame(long addr, int fi, int chunkN, int cameraPan, int cameratilt, int baseAnglePan, int baseAngleTilt);
+    public native int loadVideoFromDevice(String videoPath, int chunkN, int tileN);
+    public native void TileOperationPerFrame(long addr, int fi, int chunkN, int cameraPan, int cameraTilt);
 }
